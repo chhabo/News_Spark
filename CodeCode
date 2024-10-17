@@ -1,0 +1,69 @@
+Code
+
+import java.util.*;
+
+class CaEntitlement {
+    int id;
+    int quantity;
+    double price;
+
+    CaEntitlement(int id, int quantity, double price) {
+        this.id = id;
+        this.quantity = quantity;
+        this.price = price;
+    }
+
+    @Override
+    public String toString() {
+        return "CaEntitlement{id=" + id + ", quantity=" + quantity + ", price=" + price + "}";
+    }
+}
+
+public class MatchLists {
+    public static void main(String[] args) {
+        List<CaEntitlement> list1 = Arrays.asList(
+                new CaEntitlement(1, 40, 100.0),
+                new CaEntitlement(2, 20, 200.0),
+                new CaEntitlement(3, 30, 300.0)
+        );
+
+        List<CaEntitlement> list2 = Arrays.asList(
+                new CaEntitlement(4, 20, 200.0),
+                new CaEntitlement(5, 10, 100.0),
+                new CaEntitlement(6, 40, 400.0)
+        );
+
+        Map<CaEntitlement, CaEntitlement> matches = findMaxMatches(list1, list2);
+
+        matches.forEach((k, v) -> System.out.println(k + " -> " + v));
+    }
+
+    private static Map<CaEntitlement, CaEntitlement> findMaxMatches(List<CaEntitlement> list1, List<CaEntitlement> list2) {
+        Map<CaEntitlement, CaEntitlement> matches = new HashMap<>();
+        Set<String> matchedKeys = new HashSet<>();
+        Map<CaEntitlement, CaEntitlement> bestMatches = new HashMap<>();
+
+        for (CaEntitlement obj1 : list1) {
+            CaEntitlement bestMatch = null;
+            double minDiff = Double.MAX_VALUE;
+            for (CaEntitlement obj2 : list2) {
+                String key = obj1.quantity + "_" + obj1.price;
+                if (obj1.quantity == obj2.quantity && obj1.price == obj2.price && !matchedKeys.contains(key)) {
+                    bestMatch = obj2;
+                    matchedKeys.add(key);
+                    break;
+                } else {
+                    double diff = Math.abs(obj1.quantity - obj2.quantity) + Math.abs(obj1.price - obj2.price);
+                    if (diff < minDiff) {
+                        minDiff = diff;
+                        bestMatch = obj2;
+                    }
+                }
+            }
+            if (bestMatch != null) {
+                matches.put(obj1, bestMatch);
+            }
+        }
+        return matches;
+    }
+}
