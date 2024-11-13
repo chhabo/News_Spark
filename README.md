@@ -228,6 +228,43 @@ Distributed Architecture:
 
 The cluster consists of multiple brokers, ensuring high availability and scalability.
 
+#!/bin/bash
+
+# 检查参数数量
+if [ "$#" -ne 2 ]; then
+  echo "Usage: $0 <username> <public_key_file>"
+  exit 1
+fi
+
+USERNAME=$1
+PUBLIC_KEY_FILE=$2
+
+# 检查用户是否存在
+if ! id "$USERNAME" &>/dev/null; then
+  echo "User $USERNAME does not exist"
+  exit 1
+fi
+
+# 检查公钥文件是否存在
+if [ ! -f "$PUBLIC_KEY_FILE" ]; then
+  echo "Public key file $PUBLIC_KEY_FILE does not exist"
+  exit 1
+fi
+
+# 创建用户的.ssh目录（如果不存在）
+USER_HOME=$(eval echo ~$USERNAME)
+SSH_DIR="$USER_HOME/.ssh"
+mkdir -p "$SSH_DIR"
+chown "$USERNAME:$USERNAME" "$SSH_DIR"
+chmod 700 "$SSH_DIR"
+
+# 将公钥添加到authorized_keys文件
+AUTHORIZED_KEYS="$SSH_DIR/authorized_keys"
+cat "$PUBLIC_KEY_FILE" >> "$AUTHORIZED_KEYS"
+chown "$USERNAME:$USERNAME" "$AUTHORIZED_KEYS"
+chmod 600 "$AUTHORIZED_KEYS"
+
+echo "Public key added to $AUTHORIZED_KEYS for user $USERNAME"
 
 
 
