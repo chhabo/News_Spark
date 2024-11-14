@@ -374,4 +374,53 @@ object DateParser {
   }
 }
 
+import React, { useState } from 'react';
+import * as XLSX from 'xlsx';
+import { format } from 'date-fns';  // 使用 date-fns 库
+
+const CsvParser = () => {
+  const [data, setData] = useState([]);
+
+  const handleFileUpload = (event) => {
+    const file = event.target.files[0];
+    const reader = new FileReader();
+
+    reader.onload = (e) => {
+      const binaryStr = e.target.result;
+      const workbook = XLSX.read(binaryStr, { type: 'binary' });
+      const sheetName = workbook.SheetNames[0];
+      const sheet = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1 });
+      const formattedSheet = sheet.map((row) => row.map((cell) => {
+        // 检查输入是否为字符串，且不是纯数字字符串，且可以被解析为日期
+        if (typeof cell === 'string' && isNaN(cell) && !/^\d+$/.test(cell) && !isNaN(Date.parse(cell))) {
+          const date = new Date(cell);
+          return format(date, 'MM/dd/yyyy HH:mm:ss');  // 格式化时间为 "MM/dd/yyyy HH:mm:ss"
+        }
+        return cell;
+      }));
+      setData(formattedSheet);
+    };
+
+    reader.readAsBinaryString(file);
+  };
+
+  return (
+    <div>
+      <input type="file" accept=".csv" onChange={handleFileUpload} />
+      <table>
+        <tbody>
+          {data.map((row, rowIndex) => (
+            <tr key={rowIndex}>
+              {row.map((cell, cellIndex) => (
+                <td key={cellIndex}>{cell}</td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+};
+
+export default CsvParser;
 
