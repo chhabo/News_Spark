@@ -331,3 +331,47 @@ const ExcelReader = () => {
 export default ExcelReader;
 
 
+
+
+
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeParseException
+import java.time.ZoneId
+
+object DateParser {
+  // 定义两种日期格式的解析器
+  val formatter1 = DateTimeFormatter.ofPattern("yyyy/MM/dd")
+  val formatter2 = DateTimeFormatter.ofPattern("dd/MM/yy")
+
+  def parseDate(dateStr: String): Long = {
+    try {
+      // 尝试使用第一种格式解析
+      val date = LocalDate.parse(dateStr, formatter1)
+      // 返回时间戳
+      date.atStartOfDay(ZoneId.systemDefault()).toEpochSecond
+    } catch {
+      case e1: DateTimeParseException =>
+        try {
+          // 如果第一种格式解析失败，尝试使用第二种格式
+          val date = LocalDate.parse(dateStr, formatter2)
+          // 返回时间戳
+          date.atStartOfDay(ZoneId.systemDefault()).toEpochSecond
+        } catch {
+          case e2: DateTimeParseException =>
+            throw new IllegalArgumentException(s"无法解析日期字符串: $dateStr")
+        }
+    }
+  }
+
+  def main(args: Array[String]): Unit = {
+    // 测试不同格式的日期字符串
+    val dateStr1 = "2024/09/21"
+    val dateStr2 = "21/09/24"
+
+    println(s"$dateStr1 的时间戳: ${parseDate(dateStr1)}")
+    println(s"$dateStr2 的时间戳: ${parseDate(dateStr2)}")
+  }
+}
+
+
