@@ -266,5 +266,68 @@ chmod 600 "$AUTHORIZED_KEYS"
 
 echo "Public key added to $AUTHORIZED_KEYS for user $USERNAME"
 
+import React, { useState } from 'react';
+import * as XLSX from 'xlsx';
+
+const ExcelReader = () => {
+  const [data, setData] = useState([]);
+
+  const handleFileUpload = (e) => {
+    const file = e.target.files[0];
+    const reader = new FileReader();
+
+    reader.onload = (event) => {
+      const binaryStr = event.target.result;
+      const workbook = XLSX.read(binaryStr, { type: 'binary' });
+      const sheetName = workbook.SheetNames[0];
+      const sheet = workbook.Sheets[sheetName];
+
+      const jsonData = XLSX.utils.sheet_to_json(sheet, {
+        header: 1,
+        raw: false,
+        defval: '',
+        cellDates: true, // 将单元格解析为日期
+        dateNF: 'yyyy-mm-dd' // 设置日期格式
+      });
+
+      const parsedData = jsonData.map(row =>
+        row.map(cell => {
+          if (cell instanceof Date) {
+            // 将日期格式化为字符串
+            return cell.toISOString().split('T')[0];
+          } else if (typeof cell === 'string' && !isNaN(Date.parse(cell))) {
+            // 处理字符串日期格式
+            return new Date(cell).toISOString().split('T')[0];
+          } else {
+            return cell;
+          }
+        })
+      );
+
+      setData(parsedData);
+    };
+
+    reader.readAsBinaryString(file);
+  };
+
+  return (
+    <div>
+      <input type="file" onChange={handleFileUpload} />
+      <table>
+        <tbody>
+          {data.map((row, rowIndex) => (
+            <tr key={rowIndex}>
+              {row.map((cell, cellIndex) => (
+                <td key={cellIndex}>{cell}</td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+};
+
+export default ExcelReader;
 
 
