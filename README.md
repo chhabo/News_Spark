@@ -1,4 +1,4 @@
-8# 基于Spark2.x新闻网大数据实时分析可视化系统项目
+58# 基于Spark2.x新闻网大数据实时分析可视化系统项目
 
 ## 一、业务需求分析
 
@@ -423,4 +423,77 @@ const CsvParser = () => {
 };
 
 export default CsvParser;
+
+
+import java.util.concurrent.*;
+import java.util.concurrent.ConcurrentHashMap;
+
+public class MQTimeoutHandler {
+
+    // 使用ConcurrentHashMap存储消息ID和发送时间
+    private final ConcurrentHashMap<String, Long> pendingMessages = new ConcurrentHashMap<>();
+    private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
+    private static final long TIMEOUT_MS = 5000; // 超时时间5秒
+
+    public void start() {
+        // 每隔1秒检查一次超时
+        scheduler.scheduleAtFixedRate(this::checkForTimeouts, 0, 1, TimeUnit.SECONDS);
+    }
+
+    private void checkForTimeouts() {
+        long currentTime = System.currentTimeMillis();
+        // 遍历并移除超时的消息
+        pendingMessages.entrySet().removeIf(entry -> {
+            if (currentTime - entry.getValue() > TIMEOUT_MS) {
+                handleExpiredMessage(entry.getKey());
+                return true; // 移除该条目
+            }
+            return false;
+        });
+    }
+
+    private void handleExpiredMessage(String messageId) {
+        // 处理超时逻辑，例如重发或记录日志
+        System.out.println("消息超时: " + messageId);
+        // 示例：重发消息
+        resendMessage(messageId);
+    }
+
+    private void resendMessage(String messageId) {
+        // 实现重发逻辑
+        System.out.println("重发消息: " + messageId);
+    }
+
+    public void sendMessage(String messageId) {
+        // 模拟发送消息
+        System.out.println("发送消息: " + messageId);
+        pendingMessages.put(messageId, System.currentTimeMillis());
+    }
+
+    public void onMessageAck(String messageId) {
+        // 收到确认后移除
+        pendingMessages.remove(messageId);
+        System.out.println("收到确认: " + messageId);
+    }
+
+    public void shutdown() {
+        scheduler.shutdown();
+    }
+
+    public static void main(String[] args) throws InterruptedException {
+        MQTimeoutHandler handler = new MQTimeoutHandler();
+        handler.start();
+
+        // 模拟发送消息
+        handler.sendMessage("MSG-001");
+        handler.sendMessage("MSG-002");
+
+        // 模拟确认消息
+        Thread.sleep(2000);
+        handler.onMessageAck("MSG-001"); // MSG-002将超时
+
+        Thread.sleep(4000); // 等待足够时间触发检查
+        handler.shutdown();
+    }
+}
 
