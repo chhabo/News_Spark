@@ -497,3 +497,170 @@ public class MQTimeoutHandler {
     }
 }
 
+
+
+为了在Java程序中处理订单时埋点并监控处理速度，并将数据推送至Prometheus，可以按照以下步骤进行：
+
+### 1. 添加依赖
+在项目的构建文件（如Maven的`pom.xml`）中添加Micrometer和Prometheus的依赖：
+
+```xml
+<dependency>
+    <groupId>io.micrometer</groupId>
+    <artifactId>micrometer-registry-prometheus</artifactId>
+    <version>1.10.0</version>
+</dependency>
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-actuator</artifactId>
+</dependency>
+```
+
+### 2. 配置Spring Boot Actuator
+在`application.properties`中启用Prometheus端点：
+
+```properties
+management.endpoints.web.exposure.include=prometheus
+management.endpoint.prometheus.enabled=true
+```
+
+### 3. 定义监控指标
+在订单处理类中注入`MeterRegistry`并定义指标：
+
+```java
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
+import io.micrometer.core.instrument.Counter;
+
+@Component
+public class OrderProcessor {
+
+    private final Timer orderProcessingTimer;
+    private final Counter successCounter;
+    private final Counter failureCounter;
+
+    public OrderProcessor(MeterRegistry registry) {
+        orderProcessingTimer = Timer.builder("order.processing.duration")
+                .description("订单处理耗时")
+                .tags("unit", "seconds")
+                .register(registry);
+
+        successCounter = Counter.builder("orders.processed.total")
+                .description("成功处理的订单数")
+                .tag("status", "success")
+                .register(registry);
+
+        failureCounter = Counter.builder("orders.processed.total")
+                .description("处理失败的订单数")
+                .tag("status", "failure")
+                .register(registry);
+    }
+}
+```
+
+### 4. 在订单处理方法中埋点
+使用定义的指标记录处理时间和结果：
+
+```java
+public void processOrder(Order order) {
+    Timer.Sample sample = Timer.start();
+
+    try {
+        // 业务处理逻辑
+        // ...
+
+        // 记录成功
+        successCounter.increment();
+    } catch (Exception e) {
+        // 记录失败
+        failureCounter.increment();
+        throw e;
+    } finally {
+        // 记录处理时间
+        sample.stop(orderProcessingTimer);
+    }
+}
+```
+
+### 5. 使用AOP简化埋点（可选）
+通过切面统一监控所有订单处理方法：
+
+```java
+@Aspect
+@Component
+public class OrderMonitoringAspect {
+
+    private final Timer orderProcessingTimer;
+    private final Counter successCounter;
+    private final Counter failureCounter;
+
+    public OrderMonitoringAspect(MeterRegistry registry) {
+        orderProcessingTimer = Timer.builder("order.processing.duration")
+                .register(registry);
+        successCounter = Counter.builder("orders.processed.total")
+                .tag("status", "success").register(registry);
+        failureCounter = Counter.builder("orders.processed.total")
+                .tag("status", "failure").register(registry);
+    }
+
+    @Around("execution(* com.example.service.OrderService.processOrder(..))")
+    public Object monitorOrderProcessing(ProceedingJoinPoint joinPoint) throws Throwable {
+        Timer.Sample sample = Timer.start();
+        try {
+            Object result = joinPoint.proceed();
+            successCounter.increment();
+            return result;
+        } catch (Exception e) {
+            failureCounter.increment();
+            throw e;
+        } finally {
+            sample.stop(orderProcessingTimer);
+        }
+    }
+}
+```
+
+### 6. 配置Prometheus抓取数据
+在Prometheus的`prometheus.yml`中添加任务：
+
+```yaml
+scrape_configs:
+  - job_name: 'order-service'
+    scrape_interval: 15s
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['your-app-host:8080']
+```
+
+### 7. 使用Grafana可视化
+在Grafana中创建仪表板，添加Prometheus数据源，使用以下查询：
+
+- **平均处理时间**：
+  ```
+  rate(order_processing_duration_seconds_sum[5m]) / rate(order_processing_duration_seconds_count[5m])
+  ```
+
+- **成功率**：
+  ```
+  sum(rate(orders_processed_total{status="success"}[5m])) / sum(rate(orders_processed_total[5m]))
+  ```
+
+### 8. 高级配置（可选）
+- **自定义Buckets**：调整直方图的分桶策略以更精确监控延迟分布：
+  ```java
+  Timer.builder("order.processing.duration")
+      .serviceLevelObjectives(Duration.ofMillis(100), Duration.ofMillis(500))
+      .register(registry);
+  ```
+
+- **标签扩展**：根据业务需求添加更多维度标签（如订单类型）：
+  ```java
+  .tag("order_type", order.getType())
+  ```
+
+### 验证步骤
+1. 启动应用后访问 `http://localhost:8080/actuator/prometheus`，确认指标存在。
+2. 在Prometheus控制台执行查询验证数据收集。
+3. 在Grafana中配置仪表板查看实时监控数据。
+
+通过以上步骤，你可以实现对订单处理速度的实时监控，并通过Prometheus和Grafana进行可视化及告警配置。
