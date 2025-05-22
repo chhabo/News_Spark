@@ -664,3 +664,186 @@ scrape_configs:
 3. 在Grafana中配置仪表板查看实时监控数据。
 
 通过以上步骤，你可以实现对订单处理速度的实时监控，并通过Prometheus和Grafana进行可视化及告警配置。
+
+
+
+@Configuration
+@EnableAuthorizationServer
+public class OAuth2AuthServerConfig extends AuthorizationServerConfigurerAdapter {
+    @Autowired
+    private AuthenticationManager authenticationManager;
+
+    @Override
+    public void configure(ClientDetailsServiceConfigurer clients) throws Exception {
+        clients.inMemory()
+            .withClient("mu_client")
+            .secret("{noop}mu_secret")
+            .authorizedGrantTypes("password", "refresh_token")
+            .scopes("read", "write")
+            .accessTokenValiditySeconds(3600);
+    }
+
+    @Bean
+    public TokenStore tokenStore() {
+        return new JwtTokenStore(jwtAccessTokenConverter());
+    }
+
+    @Bean
+    public JwtAccessTokenConverter jwtAccessTokenConverter() {
+        JwtAccessTokenConverter converter = new JwtAccessTokenConverter();
+        converter.setSigningKey("mu_signing_key");
+        return converter;
+    }
+
+    @Override
+    public void configure(AuthorizationServerEndpointsConfigurer endpoints) {
+        endpoints
+            .tokenStore(tokenStore())
+            .authenticationManager(authenticationManager)
+            .accessTokenConverter(jwtAccessTokenConverter());
+    }
+}
+@Configuration
+@EnableResourceServer
+public class ResourceServerConfig extends ResourceServerConfigurerAdapter {
+    @Override
+    public void configure(HttpSecurity http) throws Exception {
+        http
+            .anonymous().disable()
+            .requestMatcher(new OAuthRequestedMatcher())
+            .authorizeRequests()
+            .anyRequest().authenticated();
+    }
+
+    private static class OAuthRequestedMatcher implements RequestMatcher {
+        public boolean matches(HttpServletRequest request) {
+            String auth = request.getHeader("Authorization");
+            return auth != null && auth.startsWith("Bearer");
+        }
+    }
+}
+
+@EnableWebSecurity
+public class SecurityConfig extends WebSecurityConfigurerAdapter {
+    @Bean
+    @Override
+    public AuthenticationManager authenticationManagerBean() throws Exception {
+        return super.authenticationManagerBean();
+    }
+
+    @Bean
+    public UserDetailsService userDetailsService() {
+        return username -> new User(username, "{noop}password", 
+            AuthorityUtils.createAuthorityList("ROLE_USER"));
+    }
+
+    @Override
+    protected void configure(AuthenticationManagerBuilder auth) throws Exception {
+        auth.userDetailsService(userDetailsService());
+    }
+}
+public class MuRequestWrapper implements HttpServletRequest {
+    private final MuRequest rawRequest;
+    private final Map<String, String> headers = new HashMap<>();
+
+    public MuRequestWrapper(MuRequest request) {
+        this.rawRequest = request;
+        request.getHeaders().forEach(h -> headers.put(h.getName(), h.getValue()));
+    }
+
+    // 实现关键方法
+    @Override
+    public String getHeader(String name) {
+        return headers.getOrDefault(name, "");
+    }
+
+    @Override
+    public String getMethod() {
+        return rawRequest.getMethod().name();
+    }
+}
+
+public class MuResponseWrapper implements HttpServletResponse {
+    private final MuResponse rawResponse;
+    
+    public MuResponseWrapper(MuResponse response) {
+        this.rawResponse = response;
+    }
+
+    @Override
+    public void setStatus(int sc) {
+        rawResponse.setStatus(sc);
+    }
+
+    @Override
+    public void addHeader(String name, String value) {
+        rawResponse.getHeaders().add(name, value);
+    }
+}
+public class OAuth2Handler {
+    private final FilterChainProxy springSecurityFilterChain;
+
+    public OAuth2Handler(ApplicationContext context) {
+        this.springSecurityFilterChain = context.getBean(FilterChainProxy.class);
+    }
+
+    public boolean handleRequest(MuRequest request, MuResponse response) {
+        try {
+            HttpServletRequest servletRequest = new MuRequestWrapper(request);
+            HttpServletResponse servletResponse = new MuResponseWrapper(response);
+            
+            springSecurityFilterChain.doFilter(
+                servletRequest, 
+                servletResponse,
+                (req, res) -> {} // 空实现的过滤器链结束回调
+            );
+            return true;
+        } catch (Exception e) {
+            response.write("Authentication failed: " + e.getMessage());
+            return false;
+        }
+    }
+}
+public class MuOAuth2Server {
+    public static void main(String[] args) {
+        AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext();
+        context.register(SecurityConfig.class, OAuth2AuthServerConfig.class);
+        context.refresh();
+
+        OAuth2Handler handler = new OAuth2Handler(context);
+        
+        MuServer server = MuServerBuilder.muServer()
+            .withHttpPort(8080)
+            .addHandler((req, res) -> {
+                if (req.getUri().startsWith("/api/")) {
+                    return handler.handleRequest(req, res);
+                }
+                return false;
+            })
+            .start();
+    }
+}
+<dependencies>
+    <!-- Spring Security OAuth2核心库 -->
+    <dependency>
+        <groupId>org.springframework.security.oauth</groupId>
+        <artifactId>spring-security-oauth2</artifactId>
+        <version>2.5.2.RELEASE</version>
+    </dependency>
+
+    <!-- Mu Server -->
+    <dependency>
+        <groupId>com.mu-server</groupId>
+        <artifactId>mu-server-core</artifactId>
+        <version>2.5.0</version>
+    </dependency>
+
+    <!-- JWT支持 -->
+    <dependency>
+        <groupId>org.springframework.security</groupId>
+        <artifactId>spring-security-jwt</artifactId>
+        <version>1.1.1.RELEASE</version>
+    </dependency>
+</dependencies>
+
+
