@@ -1,3 +1,5 @@
+https://subs.jfdy3.net/link/TrhKz8G6mU8IR1JY?sub=3
+
 58# 基于Spark2.x新闻网大数据实时分析可视化系统项目
 
 ## 一、业务需求分析
