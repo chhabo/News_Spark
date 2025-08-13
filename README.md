@@ -1,3 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>${PROJECT_NAME} - 测试报告</title>
+    <style>
+        body { font-family: Arial, sans-serif; }
+        .summary { background-color: #f5f5f5; padding: 15px; border-radius: 5px; }
+        .metric { margin-bottom: 10px; }
+        .label { font-weight: bold; display: inline-block; width: 120px; }
+        .success { color: #4CAF50; }
+        .failure { color: #F44336; }
+    </style>
+</head>
+<body>
+    <h2>${PROJECT_NAME} - 构建 #${BUILD_NUMBER}</h2>
+    <p>构建状态: <span style="color: ${BUILD_STATUS == 'SUCCESS' ? '#4CAF50' : '#F44336'}">${BUILD_STATUS}</span></p>
+    
+    <div class="summary">
+        <h3>测试结果摘要</h3>
+        <div class="metric">
+            <span class="label">总测试数:</span> ${TEST_COUNTS, var="total"}
+        </div>
+        <div class="metric">
+            <span class="label">通过数:</span> 
+            <span class="success">${TEST_COUNTS, var="pass"}</span>
+        </div>
+        <div class="metric">
+            <span class="label">失败数:</span> 
+            <span class="failure">${TEST_COUNTS, var="fail"}</span>
+        </div>
+        <div class="metric">
+            <span class="label">跳过数:</span> ${TEST_COUNTS, var="skip"}
+        </div>
+        <div class="metric">
+            <span class="label">通过率:</span> 
+            <span class="${TEST_COUNTS, var="passRate"} > 90 ? 'success' : 'failure'}">
+                ${TEST_COUNTS, var="passRate"}%
+            </span>
+        </div>
+    </div>
+    
+    <#if TEST_COUNTS, var="fail" != "0">
+        <h3>失败测试列表</h3>
+        <pre>${FAILED_TESTS}</pre>
+    </#if>
+    
+    <p>查看完整报告: <a href="${BUILD_URL}testReport">${BUILD_URL}testReport</a></p>
+</body>
+</html>
 
 
 58# 基于Spark2.x新闻网大数据实时分析可视化系统项目
